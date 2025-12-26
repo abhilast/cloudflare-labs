@@ -4,6 +4,26 @@ const app = express();
 
 // Middleware to parse JSON
 app.use(express.json());
+app.use((req, res, next) => {
+    const cfRay = getHeader(req, 'CF-Ray', 'direct-' + Date.now());
+    const logEntry = {
+      rayId: cfRay,
+      path: req.path,
+      method: req.method,
+      timestamp: new Date().toISOString(),
+      country: getHeader(req, 'CF-IPCountry', 'Unknown'),
+      ip: getHeader(req, 'CF-Connecting-IP', req.ip)
+    };
+    
+    requestLog.push(logEntry);
+    
+    // Keep only last 100 requests
+    if (requestLog.length > 100) {
+      requestLog.shift();
+    }
+    
+    next();
+  });
 
 // Helper function to detect if behind Cloudflare proxy
 function isBehindCloudflare(req) {
@@ -298,6 +318,75 @@ app.get('/geo', (req, res) => {
       </body>
     </html>
   `);
+});
+
+app.get('/trace', (req, res) => {
+    const isCF = isBehindCloudflare(req);
+    const steps = [];
+    
+    if (isCF) {
+      steps.push(`1. User's browser at ${getHeader(req, 'CF-Connecting-IP')}`);
+      steps.push(`2. Connected to Cloudflare datacenter: ${getHeader(req, 'CF-Ray').split('-')[1]}`);
+      steps.push(`3. Cloudflare forwarded to origin server`);
+      steps.push(`4. Origin received from IP: ${req.ip} (Cloudflare's IP)`);
+      steps.push(`5. Request processed`);
+    } else {
+      steps.push(`1. User's browser at ${req.ip}`);
+      steps.push(`2. Connected directly to origin (no Cloudflare proxy)`);
+      steps.push(`3. Request processed`);
+    }
+    
+    res.send(`
+      <html>
+        <head><title>Request Trace</title></head>
+        <body style="font-family: monospace; padding: 40px;">
+          <h1>🔍 Request Trace</h1>
+          <div style="background: #f5f5f5; padding: 20px; border-radius: 8px;">
+            ${steps.map(step => `<p>${step}</p>`).join('')}
+          </div>
+        </body>
+      </html>
+    `);
+});
+  
+app.get('/welcome', (req, res) => {
+    const country = getHeader(req, 'CF-IPCountry', 'Unknown');
+    
+    const greetings = {
+      'US': 'Hello from the United States! 🇺🇸',
+      'GB': 'Hello from the United Kingdom! 🇬🇧',
+      'IN': 'Namaste from India! 🇮🇳', 
+      'DE': 'Guten Tag from Germany! 🇩🇪',
+      'FR': 'Bonjour from France! 🇫🇷',
+      'JP': 'Konnichiwa from Japan! 🇯🇵',
+      'BR': 'Olá from Brazil! 🇧🇷'
+    };
+    
+    const greeting = greetings[country] || `Hello from ${country}! 🌍`;
+    
+    res.send(`
+      <html>
+        <head><title>Country-Based Welcome</title></head>
+        <body style="font-family: Arial; text-align: center; padding: 50px;">
+          <h1>${greeting}</h1>
+          <p>Your country code: ${country}</p>
+          ${!isBehindCloudflare(req) ? `
+            <p style="color: red;">
+              ⚠️ This feature only works when proxied through Cloudflare
+            </p>
+          ` : ''}
+        </body>
+      </html>
+    `);
+  });
+
+const requestLog = [];
+
+app.get('/logs', (req, res) => {
+  res.json({
+    totalRequests: requestLog.length,
+    requests: requestLog
+  });
 });
 
 const PORT = process.env.PORT || 8080;
