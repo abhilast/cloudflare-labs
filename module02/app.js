@@ -29,6 +29,8 @@ app.get('/', (req, res) => {
             margin: 50px auto;
             padding: 20px;
             background: #f5f5f5;
+            overflow-x: hidden;
+            overflow-y: auto;
           }
           .card {
             background: white;
@@ -71,7 +73,6 @@ app.get('/', (req, res) => {
             <strong>You accessed via:</strong> ${req.hostname}
           </div>
         </div>
-
         <div class="card">
           <h2>📍 Request Information</h2>
           <pre>${JSON.stringify(requestInfo, null, 2)}</pre>
@@ -79,7 +80,17 @@ app.get('/', (req, res) => {
 
         <div class="card">
           <h2>🔍 All Request Headers</h2>
-          <pre>${JSON.stringify(req.headers, null, 2)}</pre>
+          <pre>${(() => {
+            const headers = { ...req.headers };
+            const hostHeader = headers.host;
+            delete headers.host;
+            const sortedHeaders = Object.keys(headers).sort().reduce((acc, key) => {
+              acc[key] = headers[key];
+              return acc;
+            }, {});
+            const orderedHeaders = hostHeader ? { host: hostHeader, ...sortedHeaders } : sortedHeaders;
+            return JSON.stringify(orderedHeaders, null, 2);
+          })()}</pre>
         </div>
 
         <div class="card">
