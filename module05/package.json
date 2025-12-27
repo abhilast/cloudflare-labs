@@ -1,0 +1,17 @@
+{
+  "name": "module01",
+  "version": "1.0.0",
+  "description": "Let's start your Cloudflare journey from the very beginning. I'll teach you **why** Cloudflare exists before we dive into the **how**.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1",
+    "ipaddr.js": "^2.3.0"
+  }
+}
