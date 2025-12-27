@@ -6,6 +6,63 @@
 
 ---
 
+## Table of Contents
+
+- [Layer 1: The Intuitive Foundation - Why Caching Matters](#layer-1-the-intuitive-foundation---why-caching-matters)
+  - [The Current State](#the-current-state)
+  - [The Problem: Every Request Hits Your Server](#the-problem-every-request-hits-your-server)
+  - [What Caching Does](#what-caching-does)
+  - [Real-World Analogy: The Restaurant Kitchen](#real-world-analogy-the-restaurant-kitchen)
+  - [The Three Types of Costs Caching Reduces](#the-three-types-of-costs-caching-reduces)
+  - [What Can Be Cached vs What Shouldn't](#what-can-be-cached-vs-what-shouldnt)
+- [Understanding Check #1](#understanding-check-1)
+- [Layer 2: Core Mechanics - How HTTP Caching Actually Works](#layer-2-core-mechanics---how-http-caching-actually-works)
+  - [The Three-Tier Caching System](#the-three-tier-caching-system)
+  - [Understanding HTTP Cache Headers](#understanding-http-cache-headers)
+  - [ETag and Last-Modified (Smart Validation)](#etag-and-last-modified-smart-validation)
+  - [Understanding CF-Cache-Status Header](#understanding-cf-cache-status-header)
+  - [What Cloudflare Caches By Default](#what-cloudflare-caches-by-default)
+  - [The Cache Key Concept](#the-cache-key-concept)
+- [Understanding Check #2](#understanding-check-2)
+- [Layer 3: Advanced Understanding - Caching Strategies and Edge Cases](#layer-3-advanced-understanding---caching-strategies-and-edge-cases)
+  - [The Caching Hierarchy and Invalidation](#the-caching-hierarchy-and-invalidation)
+  - [Conditional Requests and Bandwidth Savings](#conditional-requests-and-bandwidth-savings)
+  - [Cookies and Cache Busting](#cookies-and-cache-busting)
+  - [Query String Order and Cache Efficiency](#query-string-order-and-cache-efficiency)
+  - [Vary Header and Cache Fragmentation](#vary-header-and-cache-fragmentation)
+- [Understanding Check #3](#understanding-check-3)
+- [Layer 4: Hands-On Practice - Building and Testing Cache Behavior](#layer-4-hands-on-practice---building-and-testing-cache-behavior)
+  - [Step 1: Enhance Your Application with Cache Test Endpoints](#step-1-enhance-your-application-with-cache-test-endpoints)
+  - [Step 2: Restart Your Application](#step-2-restart-your-application)
+  - [Step 3: Access the Cache Testing Dashboard](#step-3-access-the-cache-testing-dashboard)
+  - [Step 4: Testing Cache Behavior with curl](#step-4-testing-cache-behavior-with-curl)
+  - [Step 5: Testing with Browser DevTools](#step-5-testing-with-browser-devtools)
+  - [Step 6: Manual Cache Purging](#step-6-manual-cache-purging)
+  - [Step 7: Understanding Cache Statistics](#step-7-understanding-cache-statistics)
+- [Practical Exercises](#practical-exercises)
+  - [Exercise 1: Cache Hit Ratio Analysis](#exercise-1-cache-hit-ratio-analysis)
+  - [Exercise 2: Cache Key Experimentation](#exercise-2-cache-key-experimentation)
+  - [Exercise 3: ETag Workflow](#exercise-3-etag-workflow)
+  - [Exercise 4: Browser Cache vs Edge Cache](#exercise-4-browser-cache-vs-edge-cache)
+- [Troubleshooting Guide](#troubleshooting-guide)
+  - [Problem: All Requests Show BYPASS](#problem-all-requests-show-bypass)
+  - [Problem: HTML Still Shows DYNAMIC](#problem-html-still-shows-dynamic)
+  - [Problem: Cache HIT on First Request](#problem-cache-hit-on-first-request)
+  - [Problem: Query String Tests All Show MISS](#problem-query-string-tests-all-show-miss)
+  - [Problem: ETag Not Working](#problem-etag-not-working)
+  - [Problem: Purge Doesn't Work](#problem-purge-doesnt-work)
+- [What You've Accomplished](#what-youve-accomplished)
+  - [Your Current Architecture](#your-current-architecture)
+  - [The Path Forward](#the-path-forward)
+- [Quick Reference](#quick-reference)
+  - [Common Cache-Control Directives](#common-cache-control-directives)
+  - [CF-Cache-Status Values](#cf-cache-status-values)
+  - [Testing Commands](#testing-commands)
+  - [Default Caching by Extension](#default-caching-by-extension)
+- [Additional Resources](#additional-resources)
+
+---
+
 ## Layer 1: The Intuitive Foundation - Why Caching Matters
 
 ### The Current State
@@ -23,7 +80,7 @@ But there's still a massive efficiency problem that caching solves.
 
 Right now, when someone visits your site, here's what happens:
 
-```
+```text
 User in Tokyo visits your-domain.com
     ↓
 Cloudflare edge server in Tokyo receives request
@@ -44,7 +101,7 @@ Total time: 300-500ms
 
 **Now imagine 1,000 users in Tokyo all request the same page:**
 
-```
+```text
 1,000 requests travel: Tokyo → Mumbai → Tokyo
 Your server processes the same request 1,000 times
 You pay for bandwidth: 1,000 responses × size
@@ -62,7 +119,7 @@ Caching is like making photocopies. Instead of rewriting the same document 1,000
 
 **With caching enabled:**
 
-```
+```text
 First user in Tokyo visits your-domain.com
     ↓
 Cloudflare edge in Tokyo: "I don't have this cached yet"
@@ -80,7 +137,7 @@ User receives page (300ms)
 
 **Next 999 users in Tokyo request the same page:**
 
-```
+```text
 User requests page
     ↓
 Cloudflare edge in Tokyo: "I have this cached!"
@@ -102,7 +159,7 @@ Think of your origin server as a restaurant kitchen, and Cloudflare's edge serve
 
 **Without caching (no food trucks):**
 
-```
+```text
 Customer in North City: "I want a burger"
     ↓ Drives 20 miles to main restaurant
 Main kitchen: Makes burger
@@ -114,7 +171,7 @@ Every customer, no matter where they are, drives to the main kitchen. The kitche
 
 **With caching (food trucks deployed):**
 
-```
+```text
 First customer in North City: "I want a burger"
     ↓ Drives 20 miles to main restaurant
 Main kitchen: Makes burger, sends recipe to North City food truck
@@ -138,7 +195,7 @@ Let me break down exactly what you save with caching:
 
 Every byte your server sends costs money. If you serve a 2MB image to 10,000 users:
 
-```
+```text
 Without caching:
     10,000 requests × 2MB = 20GB bandwidth
     AWS bandwidth: ~$0.12/GB in India
@@ -161,7 +218,7 @@ Every request your server handles consumes:
 - Database queries (if needed)
 - File system reads
 
-```
+```text
 Without caching:
     10,000 requests × 50ms CPU time = 500 seconds of CPU
     10,000 database queries
@@ -177,7 +234,7 @@ With caching:
 
 Time is money, especially for users. Every millisecond of delay reduces conversions and engagement.
 
-```
+```text
 Without caching:
     User in Singapore → Your server in Mumbai → Singapore
     Round trip: 200ms + processing time
@@ -204,7 +261,7 @@ Not everything should be cached. Understanding what to cache is critical.
 
 **Should cache (static content):**
 
-```
+```text
 Images:           logo.png, banner.jpg
                  ✓ Never changes, cache forever
 
@@ -223,7 +280,7 @@ Videos:           demo.mp4
 
 **Should NOT cache (dynamic content):**
 
-```
+```text
 User dashboards:  /dashboard
                  ✗ Personal data, different for each user
 
@@ -242,7 +299,7 @@ Admin panels:     /admin
 
 **Can cache with care (semi-dynamic content):**
 
-```
+```text
 Blog posts:       /blog/my-post
                  ~ Content stable, cache for hours
                  ~ Invalidate when author updates
@@ -396,7 +453,7 @@ There's no bug here - it's working as designed. The question is: did you design 
 
 When you use Cloudflare with your browser, there are actually THREE caches in play:
 
-```
+```text
 Browser Cache
     ↓
 Cloudflare Edge Cache
@@ -410,7 +467,7 @@ Let me walk you through a request journey with caching:
 
 **Request 1: First visitor (cache cold)**
 
-```
+```text
 Browser (no cache): "GET /style.css"
     ↓
 Cloudflare Edge (no cache): "I don't have this, ask origin"
@@ -426,7 +483,7 @@ Cache Status: MISS (not in Cloudflare cache)
 
 **Request 2: Same visitor, 5 minutes later**
 
-```
+```text
 Browser (has cache): "I have style.css cached, still valid"
     ↓
 Doesn't even make network request!
@@ -438,7 +495,7 @@ No network traffic, instant load!
 
 **Request 3: Different visitor (Browser cache empty, but Cloudflare has it)**
 
-```
+```text
 Browser (no cache): "GET /style.css"
     ↓
 Cloudflare Edge (has cache): "I have this! Serving cached copy"
@@ -451,7 +508,7 @@ Response time: 10-30ms
 
 **Request 4: Different visitor, 2 hours later (cache expired)**
 
-```
+```text
 Browser (no cache): "GET /style.css"
     ↓
 Cloudflare Edge (cache expired): "My copy is too old, ask origin again"
@@ -481,21 +538,21 @@ Let me break down what each part means:
 
 **`public`** - "Anyone can cache this (browsers, CDNs, proxies)"
 
-```
+```text
 public = Cloudflare can cache, browser can cache, any proxy can cache
 Good for: Images, CSS, JS, public content
 ```
 
 **`private`** - "Only the user's browser can cache this, not CDNs"
 
-```
+```text
 private = Browser can cache, but Cloudflare shouldn't
 Good for: User-specific pages, personalized content
 ```
 
 **`no-cache`** - "You can store it, but always check with origin before using"
 
-```
+```text
 no-cache = Cache the file, but validate freshness on every request
 Origin responds with 304 Not Modified if unchanged
 Good for: Content that might change but doesn't always
@@ -503,14 +560,14 @@ Good for: Content that might change but doesn't always
 
 **`no-store`** - "Never cache this anywhere, period"
 
-```
+```text
 no-store = Don't save this to disk, don't cache at all
 Good for: Sensitive data, user dashboards, shopping carts
 ```
 
 **`max-age=3600`** - "This is fresh for 3600 seconds (1 hour)"
 
-```
+```text
 max-age=3600 = Cache for 1 hour
 max-age=86400 = Cache for 24 hours
 max-age=31536000 = Cache for 1 year
@@ -551,7 +608,7 @@ This tells the client when the resource was last changed.
 
 **How it works:**
 
-```
+```text
 First request:
 Browser → Server: "GET /article.html"
 Server → Browser:
@@ -585,7 +642,7 @@ ETag: "686897696a7c876b7e"
 
 **How it works:**
 
-```
+```text
 First request:
 Browser → Server: "GET /data.json"
 Server → Browser:
@@ -611,7 +668,7 @@ If NO (different ETag):
 
 **When to use each:**
 
-```
+```text
 Last-Modified:
 ✓ Good for files that have timestamps
 ✓ Simple to implement
@@ -639,7 +696,7 @@ Here are all the possible values and what they mean:
 
 **`HIT`** - "Found in cache, served from edge"
 
-```
+```text
 ✓ Request never touched your origin
 ✓ Fastest possible response
 ✓ This is what you want for static content!
@@ -647,7 +704,7 @@ Here are all the possible values and what they mean:
 
 **`MISS`** - "Not in cache, fetched from origin"
 
-```
+```text
 • First request for this resource
 • Cache was purged
 • Content not cacheable by default
@@ -656,7 +713,7 @@ Here are all the possible values and what they mean:
 
 **`EXPIRED`** - "Was cached, but TTL elapsed"
 
-```
+```text
 • Content was in cache but max-age passed
 • Cloudflare fetched fresh copy from origin
 • Will now cache the new copy
@@ -664,7 +721,7 @@ Here are all the possible values and what they mean:
 
 **`DYNAMIC`** - "Not cached due to content type"
 
-```
+```text
 • HTML pages (by default)
 • Content-Type not in Cloudflare's default cache list
 • Can override with Page Rules to cache
@@ -672,7 +729,7 @@ Here are all the possible values and what they mean:
 
 **`BYPASS`** - "Intentionally not caching"
 
-```
+```text
 • Cache-Control: no-cache or no-store
 • Set-Cookie header present
 • Cloudflare Page Rule set to bypass cache
@@ -680,7 +737,7 @@ Here are all the possible values and what they mean:
 
 **`REVALIDATED`** - "Cache was validated and still fresh"
 
-```
+```text
 • Had cached copy
 • Checked with origin (If-Modified-Since / If-None-Match)
 • Origin said "304 Not Modified"
@@ -712,7 +769,7 @@ This is crucial to understand: **Cloudflare does NOT cache everything automatica
 
 **Cached by default (based on file extension):**
 
-```
+```text
 Images:      .jpg, .jpeg, .png, .gif, .webp, .bmp, .svg, .ico
 Styles:      .css
 Scripts:     .js
@@ -724,7 +781,7 @@ Archives:    .zip, .tar, .gz
 
 **NOT cached by default:**
 
-```
+```text
 HTML:        .html, .htm (DYNAMIC status)
 APIs:        Paths starting with /api/
 Dynamic:     .php, .aspx, .jsp
@@ -757,7 +814,7 @@ Cloudflare (and all caches) store content using a "cache key" - a unique identif
 
 **Default cache key:**
 
-```
+```text
 Protocol + Host + Path + Query String
 
 Examples:
@@ -774,7 +831,7 @@ https://example.com/search?q=caching
 
 **Important implications:**
 
-```
+```text
 Same resource, different query strings = Different cache entries
 
 /api/data?user=john      ← Cached separately
@@ -787,7 +844,7 @@ But means 3 cache entries instead of 1.
 
 **Order matters in query strings (by default):**
 
-```
+```text
 /search?q=test&sort=new     ← Cache entry 1
 /search?sort=new&q=test     ← Cache entry 2 (duplicate!)
 
@@ -920,7 +977,7 @@ This is a common source of confusion! "I set cache headers but it's not caching!
 
 When you have multiple cache layers, invalidation (clearing the cache) becomes complex:
 
-```
+```text
 Cached in 3 places:
 1. User's browser
 2. Cloudflare edge (200+ locations)
@@ -933,7 +990,7 @@ When you update content, how do you clear all caches?
 
 **Your control points:**
 
-```
+```text
 Your control:
 ✓ Cloudflare edge cache (you can purge via dashboard/API)
 ✓ Origin cache headers (you control max-age)
@@ -997,7 +1054,7 @@ Even when cache expires, you can avoid re-downloading unchanged content:
 
 **The smart revalidation dance:**
 
-```
+```text
 Browser has: style.css (ETag: "abc123", expired)
 
 Browser → Cloudflare:
@@ -1039,7 +1096,7 @@ Cookies are a major cache complexity. Here's what you need to know:
 
 **Cloudflare's cookie behavior:**
 
-```
+```text
 Request has Set-Cookie header → BYPASS cache
 Request has Cookie header → Often BYPASS (depends on configuration)
 
