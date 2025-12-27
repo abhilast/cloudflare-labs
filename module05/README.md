@@ -6,15 +6,29 @@
 
 ## Table of Contents
 
-- [Layer 1: The Foundation - Understanding the Vulnerability](#layer-1-the-foundation-understanding-the-vulnerability)
+- [Layer 1: The Foundation - Understanding the Vulnerability](#layer-1-the-foundation---understanding-the-vulnerability)
   - [The Current Security Gap](#the-current-security-gap)
   - [Demonstrating the Problem](#demonstrating-the-problem)
   - [The Attack Scenario](#the-attack-scenario)
-- [Layer 2: Core Mechanics - How Origin Protection Works](#layer-2-core-mechanics-how-origin-protection-works)
-- [Layer 3: Advanced Understanding - The Complete Picture](#layer-3-advanced-understanding-the-complete-picture)
+  - [Real-World Analogy](#real-world-analogy)
+  - [How Origin IP Addresses Get Leaked](#how-origin-ip-addresses-get-leaked)
+- [Understanding Check #1](#understanding-check-1)
+- [Layer 2: Core Mechanics - How Origin Protection Works](#layer-2-core-mechanics---how-origin-protection-works)
+  - [The Solution: IP Whitelisting](#the-solution-ip-whitelisting)
+  - [Understanding Cloudflare's IP Ranges](#understanding-cloudflares-ip-ranges)
+  - [Two Levels of Protection](#two-levels-of-protection)
+  - [The Principle: Defense in Depth](#the-principle-defense-in-depth)
+  - [Understanding Firewall Rules Logic](#understanding-firewall-rules-logic)
+- [Understanding Check #2](#understanding-check-2)
+- [Layer 3: Advanced Understanding - The Complete Picture](#layer-3-advanced-understanding---the-complete-picture)
   - [Why SSH Is a Special Case](#why-ssh-is-a-special-case)
+  - [Understanding IP Ranges and CIDR Notation](#understanding-ip-ranges-and-cidr-notation)
+  - [The Complete Security Architecture](#the-complete-security-architecture)
+  - [What Happens to Blocked Connections](#what-happens-to-blocked-connections)
   - [Keeping Cloudflare IP Ranges Updated](#keeping-cloudflare-ip-ranges-updated)
-- [Layer 4: Hands-On Implementation - Protecting Your Origin](#layer-4-hands-on-implementation-protecting-your-origin)
+- [Understanding Check #3](#understanding-check-3)
+- [Layer 4: Hands-On Implementation - Protecting Your Origin](#layer-4-hands-on-implementation---protecting-your-origin)
+  - [Prerequisites Check](#prerequisites-check)
   - [Step 1: Get Your Current IP Address](#step-1-get-your-current-ip-address)
   - [Step 2: Get Current Cloudflare IP Ranges](#step-2-get-current-cloudflare-ip-ranges)
   - [Step 3: Configure AWS Security Group](#step-3-configure-aws-security-group)
@@ -22,8 +36,20 @@
   - [Step 5: Install and Configure UFW (Second Layer)](#step-5-install-and-configure-ufw-second-layer)
   - [Step 6: Comprehensive Testing](#step-6-comprehensive-testing)
   - [Step 7: Create Origin Protection Verification Endpoint](#step-7-create-origin-protection-verification-endpoint)
+- [Practical Exercises](#practical-exercises)
+  - [Exercise 1: Firewall Log Monitoring](#exercise-1-firewall-log-monitoring)
+  - [Exercise 2: Automated Cloudflare IP Update Script](#exercise-2-automated-cloudflare-ip-update-script)
+  - [Exercise 3: SSH from Different Locations](#exercise-3-ssh-from-different-locations)
+  - [Exercise 4: Stress Test Your Protection](#exercise-4-stress-test-your-protection)
 - [Troubleshooting Guide](#troubleshooting-guide)
-- [AWS Security Group Best Practices](#aws-security-group-best-practices)
+  - [Problem: Locked Out of SSH](#problem-locked-out-of-ssh)
+  - [Problem: Site Works but Shows "Not Protected"](#problem-site-works-but-shows-not-protected)
+  - [Problem: Domain Doesn't Load After Firewall Configuration](#problem-domain-doesnt-load-after-firewall-configuration)
+  - [Problem: Some Users Can Access, Others Can't](#problem-some-users-can-access-others-cant)
+  - [Problem: High Memory Usage After UFW Enable](#problem-high-memory-usage-after-ufw-enable)
+  - [Problem: Can't Update Firewall Rules](#problem-cant-update-firewall-rules)
+- [What You've Accomplished](#what-youve-accomplished)
+- [Quick Reference](#quick-reference)
 - [Final Understanding Check](#final-understanding-check)
 - [Additional Resources](#additional-resources)
 
@@ -34,7 +60,7 @@
 ### The Current Security Gap
 
 After completing Module 4, you have an impressive security setup:
-- Full HTTPS encryption (Browserâ†"Cloudflare and Cloudflareâ†"Origin)
+- Full HTTPS encryption (Browser↔Cloudflare and Cloudflare↔Origin)
 - Certificate validation at both stages
 - Automatic HTTP to HTTPS redirects
 - Your origin IP hidden from DNS lookups
@@ -100,15 +126,15 @@ Once the attacker has your IP, they bypass Cloudflare entirely:
 
 ```
 Attacker
-    â†"
+    ↓
     Sends 1 million requests per second
-    â†"
+    ↓
     Directly to 54.123.45.67 (your AWS IP)
-    â†"
+    ↓
     Your server gets overwhelmed
-    â†"
+    ↓
     Server crashes, out of memory, network saturated
-    â†"
+    ↓
     Your site goes down
 ```
 
@@ -132,13 +158,13 @@ Think of Cloudflare as hiring a professional security team to guard your office 
 Your current setup:
 ```
 Front Door (your-domain.com):
-    â†' Goes through Cloudflare security âœ…
-    â†' Protected, filtered, cached âœ…
+    → Goes through Cloudflare security ✅
+    → Protected, filtered, cached ✅
 
 Back Door (54.123.45.67):
-    â†' Direct access to your server âŒ
-    â†' No Cloudflare protection âŒ
-    â†' All attacks hit directly âŒ
+    → Direct access to your server ❌
+    → No Cloudflare protection ❌
+    → All attacks hit directly ❌
 ```
 
 Origin protection is about **closing that back door** - making sure the only way to reach your server is through Cloudflare.
@@ -261,21 +287,21 @@ Think of it like this: instead of accepting visitors from anywhere in the world,
 
 ```
 User anywhere in world
-    â†"
+    ↓
     Tries to connect to your-domain.com
-    â†"
+    ↓
 DNS returns: 104.21.X.X (Cloudflare IP)
-    â†"
+    ↓
 User connects to Cloudflare edge server
-    â†"
+    ↓
 Cloudflare edge (at allowed IP like 173.245.48.5)
-    â†"
+    ↓
     Connects to your origin: 54.123.45.67
-    â†"
+    ↓
 Your firewall checks: "Is this from a Cloudflare IP?"
-    âœ… YES: Allow connection
-    âŒ NO: Reject connection
-    â†"
+    ✅ YES: Allow connection
+    ❌ NO: Reject connection
+    ↓
 Your application receives request (only if from Cloudflare)
 ```
 
@@ -283,15 +309,15 @@ Your application receives request (only if from Cloudflare)
 
 ```
 Attacker
-    â†"
+    ↓
     Tries to connect directly to 54.123.45.67
-    â†"
+    ↓
 Your firewall checks: "Is this from a Cloudflare IP?"
-    âŒ NO: Connection rejected
-    â†"
+    ❌ NO: Connection rejected
+    ↓
 Attacker gets: Connection timeout / Connection refused
-    â†"
-Your application never sees the request âœ…
+    ↓
+Your application never sees the request ✅
 ```
 
 ### Understanding Cloudflare's IP Ranges
@@ -376,16 +402,16 @@ Security professionals use a concept called "defense in depth" - multiple layers
 **Your layers:**
 ```
 Layer 1: Cloudflare Edge
-    â†' DDoS protection, WAF, rate limiting
+    → DDoS protection, WAF, rate limiting
     
 Layer 2: AWS Security Group
-    â†' Network-level IP filtering
+    → Network-level IP filtering
     
 Layer 3: Ubuntu Firewall (UFW)
-    â†' Host-level IP filtering
+    → Host-level IP filtering
     
 Layer 4: Application Security
-    â†' Input validation, authentication, etc.
+    → Input validation, authentication, etc.
 ```
 
 If an attacker somehow bypasses Cloudflare (discovered your IP), they still hit AWS Security Groups. If they bypass that (you misconfigured), they hit UFW. If they bypass that, your application security is the last line of defense.
@@ -409,21 +435,21 @@ Firewall rules work on a simple principle: **first match wins**. Rules are evalu
 
 ```
 Connection from 123.45.67.89 to port 22 (SSH):
-    â†' Check rule 1: Match! Allow âœ…
-    â†' (stops checking, connection allowed)
+    → Check rule 1: Match! Allow ✅
+    → (stops checking, connection allowed)
 
 Connection from 173.245.48.100 to port 443 (HTTPS):
-    â†' Check rule 1: No match (different port)
-    â†' Check rule 2: Match! Allow âœ…
-    â†' (stops checking, connection allowed)
+    → Check rule 1: No match (different port)
+    → Check rule 2: Match! Allow ✅
+    → (stops checking, connection allowed)
 
 Connection from 5.6.7.8 to port 443 (random attacker):
-    â†' Check rule 1: No match (wrong IP and port)
-    â†' Check rule 2: No match (IP not in range)
-    â†' Check rule 3: No match (IP not in range)
-    â†' ... continue through all rules ...
-    â†' No matches, hit default: Deny âŒ
-    â†' (connection rejected)
+    → Check rule 1: No match (wrong IP and port)
+    → Check rule 2: No match (IP not in range)
+    → Check rule 3: No match (IP not in range)
+    → ... continue through all rules ...
+    → No matches, hit default: Deny ❌
+    → (connection rejected)
 ```
 
 This is why rule order matters. If you put "Deny all" first, nothing would work!
@@ -510,14 +536,14 @@ When we configure the firewall, we need to be extremely careful about SSH (port 
 
 ```
 HTTP/HTTPS (ports 80, 443):
-    âœ… Can be restricted to Cloudflare IPs only
-    âœ… Users connect through Cloudflare, not directly
-    âœ… Safe to lock down completely
+    ✅ Can be restricted to Cloudflare IPs only
+    ✅ Users connect through Cloudflare, not directly
+    ✅ Safe to lock down completely
 
 SSH (port 22):
-    âš ï¸ You connect DIRECTLY, not through Cloudflare
-    âš ï¸ If you restrict to Cloudflare IPs, YOU can't access it
-    âš ï¸ Must allow from your IP or risk lockout
+    ⚠️ You connect DIRECTLY, not through Cloudflare
+    ⚠️ If you restrict to Cloudflare IPs, YOU can't access it
+    ⚠️ Must allow from your IP or risk lockout
 ```
 
 **The safe SSH strategy:**
@@ -555,20 +581,20 @@ The number after the `/` tells you how many bits of the IP address are fixed (th
 
 ```
 173.245.48.0/20
-    â†' First 20 bits are fixed: 173.245.48
-    â†' Last 12 bits can vary: .0 through .255 on multiple octets
-    â†' Covers 4,096 IP addresses
-    â†' Range: 173.245.48.0 - 173.245.63.255
+    → First 20 bits are fixed: 173.245.48
+    → Last 12 bits can vary: .0 through .255 on multiple octets
+    → Covers 4,096 IP addresses
+    → Range: 173.245.48.0 - 173.245.63.255
 
 123.45.67.89/32
-    â†' All 32 bits are fixed (single IP)
-    â†' Covers exactly 1 IP address: 123.45.67.89
-    â†' Used for whitelisting your exact IP
+    → All 32 bits are fixed (single IP)
+    → Covers exactly 1 IP address: 123.45.67.89
+    → Used for whitelisting your exact IP
 
 0.0.0.0/0
-    â†' Zero bits fixed (all can vary)
-    â†' Covers ALL possible IP addresses
-    â†' Used for "allow from anywhere"
+    → Zero bits fixed (all can vary)
+    → Covers ALL possible IP addresses
+    → Used for "allow from anywhere"
 ```
 
 **Quick reference for common prefixes:**
@@ -590,36 +616,36 @@ Let me show you how all the pieces fit together in your final architecture:
 
 ```
 Internet User
-    â†"
+    ↓
 DNS Query: "What's the IP for your-domain.com?"
-    â†"
+    ↓
 Cloudflare DNS: "Here's 104.21.48.10 (our edge IP)"
-    â†"
+    ↓
 User's browser connects to 104.21.48.10 (Cloudflare edge in their region)
-    â†"
+    ↓
 Cloudflare Edge Server
-    â†' Checks cache - HIT or MISS?
-    â†' Applies WAF rules
-    â†' Applies rate limiting
-    â†' Checks security rules
-    â†"
+    → Checks cache - HIT or MISS?
+    → Applies WAF rules
+    → Applies rate limiting
+    → Checks security rules
+    ↓
 If needs to reach origin:
 Cloudflare connects from their IP (e.g., 173.245.48.50)
-    â†"
+    ↓
 Your AWS Security Group checks:
-    âœ… Is source IP in Cloudflare ranges? YES
-    âœ… Is destination port 80 or 443? YES
-    â†' Allow connection
-    â†"
+    ✅ Is source IP in Cloudflare ranges? YES
+    ✅ Is destination port 80 or 443? YES
+    → Allow connection
+    ↓
 Your Ubuntu UFW firewall checks:
-    âœ… Is source IP in Cloudflare ranges? YES  
-    âœ… Is destination port 80 or 443? YES
-    â†' Allow connection
-    â†"
+    ✅ Is source IP in Cloudflare ranges? YES  
+    ✅ Is destination port 80 or 443? YES
+    → Allow connection
+    ↓
 Connection reaches your Node.js application
-    â†"
+    ↓
 Your app validates input, checks authentication, etc.
-    â†"
+    ↓
 Response sent back through the same path
 ```
 
@@ -627,15 +653,15 @@ Response sent back through the same path
 
 ```
 Attacker
-    â†"
+    ↓
 Somehow discovered your IP: 54.123.45.67
-    â†"
+    ↓
 Attacker tries: https://54.123.45.67
-    â†"
+    ↓
 AWS Security Group checks:
-    âŒ Is source IP in Cloudflare ranges? NO
-    â†' Reject connection immediately
-    â†"
+    ❌ Is source IP in Cloudflare ranges? NO
+    → Reject connection immediately
+    ↓
 Connection never reaches your server
 Attacker gets: Connection timeout
 ```
@@ -805,12 +831,12 @@ Now let's actually secure your origin server. We'll implement protection at both
 ### Prerequisites Check
 
 Before we start, verify:
-- âœ… Your Node.js app is running on ports 80 and 443
-- âœ… HTTPS is working with Full (Strict) SSL mode
-- âœ… You can access your site via `https://your-domain.com`
-- âœ… You know your current public IP address
-- âœ… You have SSH access to your Ubuntu server
-- âœ… You have access to AWS Console
+- ✅ Your Node.js app is running on ports 80 and 443
+- ✅ HTTPS is working with Full (Strict) SSL mode
+- ✅ You can access your site via `https://your-domain.com`
+- ✅ You know your current public IP address
+- ✅ You have SSH access to your Ubuntu server
+- ✅ You have access to AWS Console
 
 ### Step 1: Get Your Current IP Address
 
@@ -1232,57 +1258,57 @@ app.get('/origin-protection', (req, res) => {
       </head>
       <body>
         <div class="header">
-          <h1>ðŸ›¡ï¸ Origin Protection Status</h1>
+          <h1>🛡️ Origin Protection Status</h1>
           <p>Security Configuration Checker</p>
         </div>
 
         <div class="card">
-          <h2>ðŸ"' Protection Status</h2>
+          <h2>🔒 Protection Status</h2>
           
           ${isCF && isFromCloudflare ? `
             <span class="status-badge protected">
-              âœ… FULLY PROTECTED
+              ✅ FULLY PROTECTED
             </span>
             
             <div class="success-box">
               <strong>Excellent! Your origin is properly protected.</strong>
               <ul>
-                <li>âœ… Traffic is flowing through Cloudflare</li>
-                <li>âœ… Source IP is from Cloudflare's ranges</li>
-                <li>âœ… Direct IP access is likely blocked by firewall</li>
-                <li>âœ… CF-* headers are present</li>
+                <li>✅ Traffic is flowing through Cloudflare</li>
+                <li>✅ Source IP is from Cloudflare's ranges</li>
+                <li>✅ Direct IP access is likely blocked by firewall</li>
+                <li>✅ CF-* headers are present</li>
               </ul>
               <p><strong>This request came from Cloudflare IP:</strong> ${sourceIP}</p>
             </div>
           ` : !isCF ? `
             <span class="status-badge exposed">
-              âŒ ORIGIN EXPOSED
+              ❌ ORIGIN EXPOSED
             </span>
             
             <div class="danger-box">
-              <strong>âš ï¸ Critical: Direct access detected!</strong>
+              <strong>⚠️ Critical: Direct access detected!</strong>
               <p>You accessed this server directly, bypassing Cloudflare. This means:</p>
               <ul>
-                <li>âŒ Your origin IP is accessible to anyone who knows it</li>
-                <li>âŒ No DDoS protection</li>
-                <li>âŒ No WAF protection</li>
-                <li>âŒ No caching benefits</li>
-                <li>âŒ Origin protection is NOT configured</li>
+                <li>❌ Your origin IP is accessible to anyone who knows it</li>
+                <li>❌ No DDoS protection</li>
+                <li>❌ No WAF protection</li>
+                <li>❌ No caching benefits</li>
+                <li>❌ Origin protection is NOT configured</li>
               </ul>
               <p><strong>Your IP:</strong> ${sourceIP}</p>
               <p><strong>Action needed:</strong> Configure AWS Security Groups and UFW to only allow Cloudflare IPs!</p>
             </div>
           ` : `
             <span class="status-badge warning">
-              âš ï¸ PARTIAL PROTECTION
+              ⚠️ PARTIAL PROTECTION
             </span>
             
             <div class="warning-box">
               <strong>Configuration may need review</strong>
               <p>Traffic is going through Cloudflare, but source IP doesn't match known Cloudflare ranges.</p>
               <ul>
-                <li>âœ… CF-* headers present (proxied traffic)</li>
-                <li>âš ï¸ Source IP unexpected: ${sourceIP}</li>
+                <li>✅ CF-* headers present (proxied traffic)</li>
+                <li>⚠️ Source IP unexpected: ${sourceIP}</li>
               </ul>
               <p>This could mean:</p>
               <ul>
@@ -1295,7 +1321,7 @@ app.get('/origin-protection', (req, res) => {
         </div>
 
         <div class="card">
-          <h2>ðŸ" Connection Details</h2>
+          <h2>🔍 Connection Details</h2>
           <div class="info-box">
             <p><strong>Request Source IP:</strong> ${sourceIP}</p>
             <p><strong>Real Client IP:</strong> ${getHeader(req, 'CF-Connecting-IP', 'N/A')}</p>
@@ -1307,7 +1333,7 @@ app.get('/origin-protection', (req, res) => {
         </div>
 
         <div class="card">
-          <h2>ðŸ" How to Test Protection</h2>
+          <h2>🔍 How to Test Protection</h2>
           <div class="info-box">
             <p><strong>To verify your origin is protected:</strong></p>
             <ol>
@@ -1322,15 +1348,15 @@ app.get('/origin-protection', (req, res) => {
 
         ${isCF && isFromCloudflare ? `
           <div class="card">
-            <h2>âœ… Security Checklist</h2>
+            <h2>✅ Security Checklist</h2>
             <div class="success-box">
               <p>Your origin protection is configured correctly! Here's what's protecting you:</p>
               <ul>
-                <li>âœ… <strong>DNS Protection:</strong> Domain resolves to Cloudflare IPs only</li>
-                <li>âœ… <strong>Proxy Active:</strong> Traffic flows through Cloudflare edge</li>
-                <li>âœ… <strong>Firewall Rules:</strong> Only Cloudflare IPs can reach origin</li>
-                <li>âœ… <strong>HTTPS:</strong> End-to-end encryption active</li>
-                <li>âœ… <strong>Headers Present:</strong> Cloudflare is adding security headers</li>
+                <li>✅ <strong>DNS Protection:</strong> Domain resolves to Cloudflare IPs only</li>
+                <li>✅ <strong>Proxy Active:</strong> Traffic flows through Cloudflare edge</li>
+                <li>✅ <strong>Firewall Rules:</strong> Only Cloudflare IPs can reach origin</li>
+                <li>✅ <strong>HTTPS:</strong> End-to-end encryption active</li>
+                <li>✅ <strong>Headers Present:</strong> Cloudflare is adding security headers</li>
               </ul>
               <p><strong>Additional recommendations:</strong></p>
               <ul>
@@ -1345,7 +1371,7 @@ app.get('/origin-protection', (req, res) => {
         ` : ''}
 
         <div class="card">
-          <h2>ðŸ"Š Raw Headers</h2>
+          <h2>📊 Raw Headers</h2>
           <pre style="background: #f5f5f5; padding: 15px; border-radius: 4px; overflow-x: auto; font-size: 12px;">${JSON.stringify(req.headers, null, 2)}</pre>
         </div>
       </body>
@@ -1451,9 +1477,9 @@ curl -s https://www.cloudflare.com/ips-v4 | sort > $NEW_IPS
 
 # Compare
 if diff -q $CURRENT_IPS $NEW_IPS > /dev/null; then
-    echo "âœ… Cloudflare IP ranges unchanged"
+    echo "✅ Cloudflare IP ranges unchanged"
 else
-    echo "âš ï¸ WARNING: Cloudflare IP ranges have changed!"
+    echo "⚠️ WARNING: Cloudflare IP ranges have changed!"
     echo ""
     echo "Changes detected:"
     diff $CURRENT_IPS $NEW_IPS
@@ -1580,7 +1606,7 @@ dig your-domain.com
 
 3. **Cloudflare proxy not enabled:**
    - Check Cloudflare Dashboard → DNS
-   - Make sure icon is Orange ðŸŸ , not Gray âšª
+   - Make sure icon is Orange 🟠, not Gray ⚪
 
 ### Problem: Domain Doesn't Load After Firewall Configuration
 
@@ -1710,14 +1736,14 @@ sudo ufw --force reset
 
 Congratulations! You've implemented comprehensive origin protection. You now understand:
 
-âœ… **The origin IP vulnerability** - why hiding in DNS isn't enough  
-âœ… **How attackers discover origin IPs** - historical records, email headers, subdomains  
-âœ… **Defense in depth** - multiple security layers protecting your origin  
-âœ… **AWS Security Groups** - network-level firewall configuration  
-âœ… **Ubuntu UFW** - host-level firewall setup  
-âœ… **IP whitelisting** - restricting access to Cloudflare's ranges only  
-âœ… **Testing origin protection** - verifying direct access is blocked  
-âœ… **Maintaining firewall rules** - updating Cloudflare IP ranges over time  
+✅ **The origin IP vulnerability** - why hiding in DNS isn't enough  
+✅ **How attackers discover origin IPs** - historical records, email headers, subdomains  
+✅ **Defense in depth** - multiple security layers protecting your origin  
+✅ **AWS Security Groups** - network-level firewall configuration  
+✅ **Ubuntu UFW** - host-level firewall setup  
+✅ **IP whitelisting** - restricting access to Cloudflare's ranges only  
+✅ **Testing origin protection** - verifying direct access is blocked  
+✅ **Maintaining firewall rules** - updating Cloudflare IP ranges over time  
 
 ### Your Complete Security Architecture
 
@@ -1725,49 +1751,49 @@ You now have a fully hardened setup:
 
 ```
 Layer 1: DNS
-    âœ… Domain points to Cloudflare IPs only
-    âœ… Origin IP hidden from public DNS
+    ✅ Domain points to Cloudflare IPs only
+    ✅ Origin IP hidden from public DNS
 
 Layer 2: Cloudflare Edge
-    âœ… DDoS protection active
-    âœ… WAF filtering traffic
-    âœ… Rate limiting enabled
-    âœ… SSL/TLS termination
+    ✅ DDoS protection active
+    ✅ WAF filtering traffic
+    ✅ Rate limiting enabled
+    ✅ SSL/TLS termination
 
 Layer 3: AWS Security Group
-    âœ… Network-level firewall
-    âœ… Only Cloudflare IPs allowed on 80/443
-    âœ… SSH restricted to your IP
+    ✅ Network-level firewall
+    ✅ Only Cloudflare IPs allowed on 80/443
+    ✅ SSH restricted to your IP
 
 Layer 4: Ubuntu UFW
-    âœ… Host-level firewall
-    âœ… Duplicate protection of Security Groups
-    âœ… Logging blocked attempts
+    ✅ Host-level firewall
+    ✅ Duplicate protection of Security Groups
+    ✅ Logging blocked attempts
 
 Layer 5: Application
-    âœ… HTTPS with valid certificates
-    âœ… Input validation
-    âœ… Authentication where needed
+    ✅ HTTPS with valid certificates
+    ✅ Input validation
+    ✅ Authentication where needed
 ```
 
 **Attack surface before this module:**
 ```
 Attacker could:
-âŒ Discover origin IP
-âŒ Connect directly to origin
-âŒ Bypass all Cloudflare protection
-âŒ DDoS your server directly
-âŒ Hit origin with unlimited requests
+❌ Discover origin IP
+❌ Connect directly to origin
+❌ Bypass all Cloudflare protection
+❌ DDoS your server directly
+❌ Hit origin with unlimited requests
 ```
 
 **Attack surface after this module:**
 ```
 Attacker can:
-âœ… Only connect through Cloudflare
-âœ… Traffic gets filtered by WAF
-âœ… DDoS protection active
-âœ… Rate limiting applies
-âœ… Origin completely protected
+✅ Only connect through Cloudflare
+✅ Traffic gets filtered by WAF
+✅ DDoS protection active
+✅ Rate limiting applies
+✅ Origin completely protected
 ```
 
 ### The Path Forward
@@ -1903,4 +1929,4 @@ Before moving to Module 6, ensure you can confidently answer:
 
 **Next:** Module 6 - How HTTP Caching Works (4-5 hours)
 
-*Created using the Deep Learning Framework methodology - Building secure, scalable infrastructure* ðŸ›¡ï¸
+*Created using the Deep Learning Framework methodology - Building secure, scalable infrastructure* 🛡️
