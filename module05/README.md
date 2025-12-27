@@ -96,28 +96,35 @@ Imagine you're running a popular e-commerce site. You've set up Cloudflare speci
 Even though your DNS points to Cloudflare, your real IP can be discovered through:
 
 **Historical DNS records:**
+
 ```bash
 # Tools like SecurityTrails store historical DNS data
 # If you ever had Gray Cloud enabled, your IP is in historical records
 ```
 
 **Email headers:**
+
 If your server sends emails (password resets, order confirmations), the email headers often contain your origin IP:
+
 ```
 Received: from your-server.com (54.123.45.67)
 ```
 
 **Subdomain scanning:**
+
 Maybe you have an old subdomain still in Gray Cloud mode:
+
 ```bash
 dig old-api.your-domain.com
 # Returns your real IP!
 ```
 
 **SSL certificates:**
+
 Certificate Transparency logs and certificate search engines (like crt.sh) can reveal your IP if certificates were issued directly to your IP.
 
 **Misconfigured services:**
+
 Direct connections to ports like FTP (21), SSH (22), or custom application ports might reveal your IP.
 
 **Step 2: Attack Your Origin Directly**
@@ -195,6 +202,7 @@ curl "https://crt.sh/?q=your-domain.com&output=json"
 **Method 3: Server Headers and Metadata**
 
 Your application might leak the origin IP:
+
 - Email headers (if sending from origin)
 - Error messages showing server IP
 - API responses with server metadata
@@ -203,6 +211,7 @@ Your application might leak the origin IP:
 **Method 4: Subdomain Enumeration**
 
 Attackers scan for subdomains:
+
 ```bash
 # Finding subdomains
 dig www.your-domain.com      # Maybe proxied
@@ -214,6 +223,7 @@ dig staging.your-domain.com  # Often forgotten in Gray Cloud!
 **Method 5: Misconfigured Services**
 
 Services running on your origin that aren't proxied:
+
 - Database ports (3306, 5432, 27017)
 - Admin panels on custom ports
 - FTP/SFTP servers
@@ -236,9 +246,11 @@ Before we learn how to fix this, let's make sure the problem is clear:
 <summary>Click to reveal answers</summary>
 
 **Answer 1:**
+
 No, Cloudflare does not protect you. Here's why:
 
 The attacker is connecting directly to your server's IP address, completely bypassing Cloudflare. It's like if someone hired bodyguards for the front entrance, but the attacker climbed through a back window. Cloudflare's DDoS protection, rate limiting, and security features only work for traffic that goes through Cloudflare. Direct IP access means:
+
 - No DDoS mitigation
 - No rate limiting
 - No caching (every request hits your origin)
@@ -248,6 +260,7 @@ The attacker is connecting directly to your server's IP address, completely bypa
 This is why origin protection is critical - you need to block direct IP access entirely.
 
 **Answer 2:**
+
 DNS hiding your IP is good, but not enough because:
 
 1. **Historical records:** Your IP might be in archives from before you used Cloudflare
@@ -261,9 +274,11 @@ DNS hiding your IP is good, but not enough because:
 DNS obfuscation is one layer, but you need firewall protection too.
 
 **Answer 3:**
+
 The SQL injection attack succeeds (if your code is vulnerable) because:
 
 Cloudflare's WAF never sees the request. The attacker connected directly to your IP, so:
+
 - Request goes straight to your Node.js app
 - No WAF inspection happens
 - No Cloudflare security rules apply
@@ -367,6 +382,7 @@ You can implement origin protection at two levels. For maximum security, you sho
 AWS Security Groups act as a virtual firewall at the network level, before traffic even reaches your instance. This is your first line of defense.
 
 **Pros:**
+
 - Free (built into AWS)
 - Easy to manage via AWS Console
 - Very performant (happens at AWS network edge)
@@ -374,6 +390,7 @@ AWS Security Groups act as a virtual firewall at the network level, before traff
 - No software to install
 
 **Cons:**
+
 - AWS-specific (not portable to other cloud providers)
 - Managed separately from your application
 - Can't do application-level filtering
@@ -383,6 +400,7 @@ AWS Security Groups act as a virtual firewall at the network level, before traff
 UFW (Uncomplicated Firewall) is Ubuntu's firewall tool. It runs on your actual server instance.
 
 **Pros:**
+
 - Portable (works on any Ubuntu/Linux server)
 - More granular control
 - Can see blocked attempts in logs
@@ -390,6 +408,7 @@ UFW (Uncomplicated Firewall) is Ubuntu's firewall tool. It runs on your actual s
 - Can configure per-port rules
 
 **Cons:**
+
 - Uses server resources (minimal though)
 - Requires SSH access to configure
 - Can lock yourself out if misconfigured
@@ -470,6 +489,7 @@ Let's verify you understand how firewall protection works:
 <summary>Click to reveal answers</summary>
 
 **Answer 1:**
+
 The user's experience is completely normal! Here's the flow:
 
 1. User types `your-domain.com` in browser
@@ -484,6 +504,7 @@ The user's experience is completely normal! Here's the flow:
 The user never connects directly to your IP, so they never hit your firewall rules. Cloudflare connects for them, and Cloudflare is on the whitelist. Everything works perfectly!
 
 **Answer 2:**
+
 The rejection is fairly opaque to the attacker:
 
 ```bash
@@ -494,6 +515,7 @@ curl https://54.123.45.67
 ```
 
 They don't get an error message saying "Blocked by firewall" or "Cloudflare protection active". They just can't connect. From their perspective, it looks like:
+
 - The server might be down
 - The port might be closed
 - Network issues
@@ -502,9 +524,11 @@ They don't get an error message saying "Blocked by firewall" or "Cloudflare prot
 They don't get confirmation that you're using Cloudflare, though they might guess if they see your domain works but IP doesn't. This ambiguity is good - you don't want to give attackers information about your security setup.
 
 **Answer 3:**
+
 AWS Security Groups see it first, and this is good!
 
 Order of processing:
+
 1. **AWS Security Group** (at AWS network edge, before reaching your instance)
    - If blocked here: Connection rejected immediately, doesn't even reach your server
    - No server resources used
@@ -516,6 +540,7 @@ Order of processing:
    - Second layer of defense
 
 Why it matters:
+
 - If Security Group blocks it, your server never wastes resources processing the connection
 - If Security Group has a misconfiguration, UFW is there as backup
 - Defense in depth: both must be bypassed for attacker to reach your application
@@ -549,23 +574,28 @@ SSH (port 22):
 **The safe SSH strategy:**
 
 1. **Option A: Whitelist your IP only**
-```
-Allow SSH from 123.45.67.89/32 (your current IP)
-```
-Pros: Very secure
-Cons: If your IP changes (new WiFi, travel), you're locked out
+
+   ```
+   Allow SSH from 123.45.67.89/32 (your current IP)
+   ```
+
+   Pros: Very secure
+   Cons: If your IP changes (new WiFi, travel), you're locked out
 
 2. **Option B: Whitelist your IP range**
-```
-Allow SSH from 123.45.0.0/16 (your ISP's range)
-```
-Pros: Works even if your IP changes within your ISP
-Cons: Slightly less secure (larger range)
+
+   ```
+   Allow SSH from 123.45.0.0/16 (your ISP's range)
+   ```
+
+   Pros: Works even if your IP changes within your ISP
+   Cons: Slightly less secure (larger range)
 
 3. **Option C: Use AWS Session Manager (recommended!)**
-AWS Session Manager lets you SSH into instances through AWS Console without opening port 22 to the internet at all!
-Pros: Most secure, no public SSH port
-Cons: Requires AWS setup, more complex
+
+   AWS Session Manager lets you SSH into instances through AWS Console without opening port 22 to the internet at all!
+   Pros: Most secure, no public SSH port
+   Cons: Requires AWS setup, more complex
 
 For this module, we'll use Option A (whitelist your specific IP), but I'll show you how to recover if you lock yourself out.
 
@@ -753,6 +783,7 @@ Let's test the advanced concepts:
 <summary>Click to reveal answers</summary>
 
 **Answer 1:**
+
 Those users would experience connection failures when routed to the new Cloudflare datacenters:
 
 1. User tries to visit your-domain.com
@@ -763,6 +794,7 @@ Those users would experience connection failures when routed to the new Cloudfla
 6. User sees error (probably 521 or 522 from Cloudflare)
 
 This is why you need to periodically update Cloudflare IP ranges. Best practices:
+
 - Check every 3-6 months
 - Subscribe to Cloudflare's status page for announcements
 - Monitor error rates (spike might indicate new IPs)
@@ -771,29 +803,36 @@ This is why you need to periodically update Cloudflare IP ranges. Best practices
 Cloudflare usually announces network expansions, giving you time to update.
 
 **Answer 2:**
+
 No, you cannot access your server, because your current IP (98.76.54.32) is not in the allowed list. Your options:
 
 **Immediate solutions:**
+
 1. **VPN:** Connect to your home VPN, which gives you your home IP (123.45.67.89), then SSH
 2. **AWS Session Manager:** Access through AWS Console (doesn't use port 22)
 3. **AWS Console:** Use EC2 Instance Connect if enabled
 4. **Ask someone at home:** They could add the coffee shop IP to the firewall
 
 **Long-term solutions:**
+
 1. **Whitelist a wider range:** Use /24 or /16 to cover multiple IPs in your ISP's range
 2. **Use a bastion host:** Small instance with open SSH that can access your locked-down servers
 3. **AWS Session Manager:** Best practice - no public SSH port needed
 4. **VPN server:** Run your own VPN endpoint for remote access
 
 **Emergency recovery:**
+
 If completely locked out, you can:
+
 - Access AWS Console → EC2 → Security Groups → Edit rules (add your current IP)
 - This is why having multiple layers (Security Group + UFW) is important - you can fix one from outside
 
 **Answer 3:**
+
 DROP has several security advantages over REJECT:
 
 **With DROP (silent):**
+
 - Attacker sees: Connection timeout (no response)
 - Takes ~30 seconds to timeout
 - Attacker doesn't know if:
@@ -806,6 +845,7 @@ DROP has several security advantages over REJECT:
 - Attackers might give up, thinking the IP is wrong
 
 **With REJECT (immediate response):**
+
 - Attacker sees: Connection refused (instant)
 - Confirms: "Something is there, it's actively rejecting me"
 - Reveals: Port exists and is being filtered
@@ -813,6 +853,7 @@ DROP has several security advantages over REJECT:
 - Confirms they have the right IP
 
 **The trade-off:**
+
 - DROP: More secure (less information leakage), but slower for legitimate debugging
 - REJECT: Faster (for debugging), but reveals presence of service
 
@@ -900,6 +941,7 @@ Let's configure the first layer of protection at the AWS network level.
 3. **Click on the Security Group ID**
 
 **Current rules** (before our changes):
+
 ```
 Type        Protocol    Port Range    Source
 SSH         TCP         22            0.0.0.0/0  (Anywhere)
@@ -962,6 +1004,7 @@ Description: Cloudflare Range 2
 6. **Save rules**
 
 **Your final rule set should look like:**
+
 ```
 Type        Protocol    Port    Source                      Description
 SSH         TCP         22      123.45.67.89/32             My IP
@@ -1547,6 +1590,7 @@ sudo cat /var/log/ufw.log | grep "BLOCK" | tail -20
 **Solutions:**
 
 **Option 1: AWS Console Access**
+
 1. Go to AWS Console → EC2 → Security Groups
 2. Find your security group
 3. Edit inbound rules
@@ -1554,26 +1598,33 @@ sudo cat /var/log/ufw.log | grep "BLOCK" | tail -20
 5. Try SSH again
 
 **Option 2: AWS Session Manager**
+
 1. AWS Console → Systems Manager → Session Manager
 2. Start session to your instance
 3. Fix UFW rules:
-```bash
-sudo ufw allow from YOUR_NEW_IP to any port 22
-```
+
+   ```bash
+   sudo ufw allow from YOUR_NEW_IP to any port 22
+   ```
 
 **Option 3: Disable UFW temporarily**
+
 1. Use AWS Session Manager to connect
 2. Disable UFW:
-```bash
-sudo ufw disable
-```
+
+   ```bash
+   sudo ufw disable
+   ```
+
 3. Fix your rules
 4. Re-enable:
-```bash
-sudo ufw enable
-```
+
+   ```bash
+   sudo ufw enable
+   ```
 
 **Prevention:**
+
 - Always allow your SSH IP before enabling UFW
 - Consider using AWS Session Manager instead of direct SSH
 - Keep a browser tab open with AWS Console while configuring
@@ -1597,14 +1648,17 @@ dig your-domain.com
 **Possible causes:**
 
 1. **DNS not updated yet:**
+
    - Wait 5-10 minutes after enabling Orange Cloud
    - Clear DNS cache: `sudo systemd-resolve --flush-caches`
 
 2. **Accessing via IP instead of domain:**
+
    - Make sure you're using `https://your-domain.com`
    - Not `https://YOUR_AWS_IP`
 
 3. **Cloudflare proxy not enabled:**
+
    - Check Cloudflare Dashboard → DNS
    - Make sure icon is Orange 🟠, not Gray ⚪
 
@@ -1624,24 +1678,28 @@ curl -I https://your-domain.com
 **Possible causes:**
 
 1. **Cloudflare IPs not whitelisted correctly:**
-```bash
-# On server, check UFW status
-sudo ufw status numbered
 
-# Verify Cloudflare IP ranges are present
-# Should see rules like:
-# [1] 80/tcp     ALLOW IN    173.245.48.0/20
-# [2] 443/tcp    ALLOW IN    173.245.48.0/20
-```
+   ```bash
+   # On server, check UFW status
+   sudo ufw status numbered
+
+   # Verify Cloudflare IP ranges are present
+   # Should see rules like:
+   # [1] 80/tcp     ALLOW IN    173.245.48.0/20
+   # [2] 443/tcp    ALLOW IN    173.245.48.0/20
+   ```
 
 2. **Missing IP ranges:**
+
    - Verify you added ALL ranges from https://www.cloudflare.com/ips-v4
    - One missing range = some users can't access site
 
 3. **Wrong port configuration:**
+
    - Make sure both port 80 AND 443 are allowed for each Cloudflare range
 
 **Fix:**
+
 ```bash
 # Add missing Cloudflare ranges
 sudo ufw allow from MISSING_RANGE to any port 80 proto tcp
@@ -1670,6 +1728,7 @@ sudo ufw status numbered
 ```
 
 **Verify you have ALL of these (current as of late 2024):**
+
 ```
 173.245.48.0/20
 103.21.244.0/22
