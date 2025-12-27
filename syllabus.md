@@ -1,9 +1,39 @@
-
 # Cloudflare Mastery Syllabus (Beginner to Advanced)
+
+## Table of Contents
+
+- [Pre-Flight: Understanding the Landscape](#pre-flight-understanding-the-landscape)
+  - [Module 0: What and Why (2-3 hours)](#module-0-what-and-why-2-3-hours)
+- [Phase 1: DNS & Basic Connectivity](#phase-1-dns--basic-connectivity)
+  - [Module 1: DNS Fundamentals (3-4 hours)](#module-1-dns-fundamentals-3-4-hours)
+  - [Module 2: Your First DNS Records (2-3 hours)](#module-2-your-first-dns-records-2-3-hours)
+  - [Module 3: Understanding the Proxy (3-4 hours)](#module-3-understanding-the-proxy-3-4-hours)
+- [Phase 2: Security & SSL](#phase-2-security--ssl)
+  - [Module 4: SSL/TLS Basics (4-5 hours)](#module-4-ssltls-basics-4-5-hours)
+  - [Module 5: Origin Protection (2-3 hours)](#module-5-origin-protection-2-3-hours)
+- [Phase 3: Caching Fundamentals](#phase-3-caching-fundamentals)
+  - [Module 6: How HTTP Caching Works (4-5 hours)](#module-6-how-http-caching-works-4-5-hours)
+  - [Module 7: Controlling the Cache (3-4 hours)](#module-7-controlling-the-cache-3-4-hours)
+- [Phase 4: Edge Workers Introduction](#phase-4-edge-workers-introduction)
+  - [Module 8: Your First Worker (4-5 hours)](#module-8-your-first-worker-4-5-hours)
+  - [Module 9: Practical Worker Patterns (5-6 hours)](#module-9-practical-worker-patterns-5-6-hours)
+- [Phase 5: Firewall & Security](#phase-5-firewall--security)
+  - [Module 10: Web Application Firewall (WAF) (3-4 hours)](#module-10-web-application-firewall-waf-3-4-hours)
+- [Phase 6: Advanced Topics](#phase-6-advanced-topics)
+  - [Module 11: Workers KV (Storage) (4-5 hours)](#module-11-workers-kv-storage-4-5-hours)
+  - [Module 12: Load Balancing (4-5 hours)](#module-12-load-balancing-4-5-hours)
+- [Practical Projects](#practical-projects)
+  - [Project 1: Personal Blog with CDN](#project-1-personal-blog-with-cdn-modules-1-7)
+  - [Project 2: API Gateway with Rate Limiting](#project-2-api-gateway-with-rate-limiting-modules-8-10)
+  - [Project 3: Dynamic Web App](#project-3-dynamic-web-app-modules-11-12)
+- [Learning Path Recommendations](#learning-path-recommendations)
+
+---
 
 ## **Pre-Flight: Understanding the Landscape**
 
 ### **Module 0: What and Why** (2-3 hours)
+
 *Start here if you know nothing about CDNs or Cloudflare*
 
 **Concepts:**
@@ -14,6 +44,7 @@
 - When NOT to use certain Cloudflare features
 
 **Hands-on:**
+
 ```javascript
 // Create basic Node.js server on your Ubuntu instance
 // app.js
@@ -52,6 +83,7 @@ app.listen(3000, () => {
 - The "Registrar vs DNS Provider" distinction
 
 **Hands-on:**
+
 ```bash
 # On your Ubuntu instance
 # Install dig for DNS testing
@@ -80,6 +112,7 @@ dig @8.8.8.8 your-domain.com
 - Subdomains and their uses
 
 **Hands-on:**
+
 ```javascript
 // Update your Node.js server to show request details
 app.get('/', (req, res) => {
@@ -93,11 +126,13 @@ app.get('/', (req, res) => {
 ```
 
 **Create these DNS records:**
+
 1. `A` record: `@` (root domain) → Your AWS IP - **Gray Cloud first**
 2. `A` record: `www` → Your AWS IP - **Gray Cloud**
 3. `A` record: `api` → Your AWS IP - **Gray Cloud**
 
 **Test:**
+
 ```bash
 # All should resolve to your AWS IP
 dig your-domain.com
@@ -120,6 +155,7 @@ http://your-domain.com:3000
 - The CF-Ray ID (your request fingerprint)
 
 **Hands-on:**
+
 ```javascript
 // Enhanced request logger
 app.get('/headers', (req, res) => {
@@ -140,6 +176,7 @@ app.get('/headers', (req, res) => {
 ```
 
 **Experiments:**
+
 1. **Before proxy:** Visit `http://your-domain.com:3000/headers` (Gray Cloud)
    - Note the headers
 2. **Enable proxy:** Switch DNS record to Orange Cloud
@@ -181,6 +218,7 @@ sudo apt install certbot python3-certbot-nginx
    - Copy certificate and private key
 
 2. **Install on Ubuntu:**
+
 ```bash
 # Create certificate directory
 sudo mkdir -p /etc/cloudflare-certs
@@ -198,6 +236,7 @@ sudo chmod 600 /etc/cloudflare-certs/key.pem
 ```
 
 3. **Update Node.js for HTTPS:**
+
 ```javascript
 const https = require('https');
 const fs = require('fs');
@@ -258,12 +297,14 @@ sudo ufw status
 ```
 
 **Alternative (easier): Use AWS Security Group**
+
 1. AWS Console → EC2 → Security Groups
 2. Edit inbound rules
 3. Allow HTTPS (443) only from Cloudflare IP ranges
 4. Allow SSH (22) from your IP only
 
 **Test:**
+
 - `https://your-domain.com` → Should work
 - `https://YOUR_AWS_IP` → Should timeout/fail
 
@@ -328,6 +369,7 @@ app.get('/search', (req, res) => {
 **Experiments:**
 
 1. **Test what caches by default:**
+
 ```bash
 # Request multiple times, check CF-Cache-Status header
 curl -I https://your-domain.com/static.js
@@ -346,6 +388,7 @@ curl -I https://your-domain.com/page  # DYNAMIC (HTML not cached by default)
    - Second request: `HIT` (served from cache!)
 
 3. **Test query parameters:**
+
 ```bash
 curl -I "https://your-domain.com/search?q=test"
 curl -I "https://your-domain.com/search?q=test"  # HIT
@@ -422,6 +465,7 @@ app.get('/api/user', (req, res) => {
    - Test with/without cookies
 
 **Testing:**
+
 ```bash
 # Blog should cache after first request
 curl -I https://your-domain.com/blog/hello-world
@@ -450,6 +494,7 @@ curl -I https://your-domain.com/admin/dashboard  # Always BYPASS
 1. **Dashboard → Workers & Pages → Create Worker**
 
 2. **Start with Hello World:**
+
 ```javascript
 export default {
   async fetch(request, env, ctx) {
@@ -464,6 +509,7 @@ export default {
    - You get a URL like: `your-worker.your-subdomain.workers.dev`
 
 4. **Proxy to your origin:**
+
 ```javascript
 export default {
   async fetch(request, env, ctx) {
@@ -486,6 +532,7 @@ export default {
    - Zone: Select your domain
 
 6. **Test:**
+
 ```bash
 curl -I https://your-domain.com/
 # Should see your custom headers!
@@ -494,6 +541,7 @@ curl -I https://your-domain.com/
 **Build useful workers:**
 
 **A) Add custom response headers:**
+
 ```javascript
 export default {
   async fetch(request) {
@@ -510,6 +558,7 @@ export default {
 ```
 
 **B) Log request details:**
+
 ```javascript
 export default {
   async fetch(request) {
@@ -533,6 +582,7 @@ export default {
 ### **Module 9: Practical Worker Patterns** (5-6 hours)
 
 **A) Geolocation-based responses:**
+
 ```javascript
 export default {
   async fetch(request) {
@@ -550,6 +600,7 @@ export default {
 ```
 
 **B) A/B Testing:**
+
 ```javascript
 export default {
   async fetch(request) {
@@ -576,6 +627,7 @@ export default {
 ```
 
 **C) URL Redirects:**
+
 ```javascript
 export default {
   async fetch(request) {
@@ -598,6 +650,7 @@ export default {
 ```
 
 **D) Simple Authentication:**
+
 ```javascript
 export default {
   async fetch(request) {
@@ -660,6 +713,7 @@ app.get('/search', (req, res) => {
    - Action: Managed Challenge
 
 **Test:**
+
 ```bash
 # Should be blocked
 curl -A "badbot" https://your-domain.com/
@@ -687,11 +741,13 @@ curl https://your-domain.com/
 - Use cases: Caching, configuration, simple databases
 
 **Create KV namespace:**
+
 1. Dashboard → Workers & Pages → KV
 2. Create namespace: "MY_KV"
 3. Bind to worker
 
 **Worker with KV:**
+
 ```javascript
 export default {
   async fetch(request, env) {
@@ -745,6 +801,7 @@ export default {
 - Spin up second AWS instance (or use different port on same instance for testing)
 
 **Setup:**
+
 1. **Create origins:**
    - Dashboard → Traffic → Load Balancing → Create
    - Add origin 1: Your AWS IP (primary)
@@ -755,6 +812,7 @@ export default {
    - Interval: 60 seconds
 
 3. **Create endpoint:**
+
 ```javascript
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'healthy' });
@@ -766,6 +824,7 @@ app.get('/', (req, res) => {
 ```
 
 **Test failover:**
+
 - Stop server 1
 - Traffic should route to server 2
 - Start server 1 again
@@ -777,6 +836,7 @@ app.get('/', (req, res) => {
 ## **Practical Projects** (Build These)
 
 ### **Project 1: Personal Blog with CDN** (Modules 1-7)
+
 - Static HTML cached at edge
 - Image optimization
 - SSL configured
@@ -784,6 +844,7 @@ app.get('/', (req, res) => {
 - Blog posts cached for 1 hour
 
 ### **Project 2: API Gateway with Rate Limiting** (Modules 8-10)
+
 - Worker routes to Node.js backend
 - Rate limiting per API key
 - Geolocation-based responses
@@ -791,6 +852,7 @@ app.get('/', (req, res) => {
 - Request logging
 
 ### **Project 3: Dynamic Web App** (Modules 11-12)
+
 - Workers KV for session storage
 - Load balanced across 2 servers
 - A/B testing via Worker
@@ -799,23 +861,31 @@ app.get('/', (req, res) => {
 
 ---
 
-## **Learning Path Recommendations:**
+## **Learning Path Recommendations**
 
 **Week 1:** Modules 0-3 (Foundation)
+
 **Week 2:** Modules 4-5 (Security)
+
 **Week 3:** Modules 6-7 (Caching)
+
 **Week 4:** Modules 8-9 (Workers)
+
 **Week 5:** Module 10 (Firewall)
+
 **Week 6:** Modules 11-12 (Advanced)
+
 **Week 7-8:** Build all 3 projects
 
 **Daily Routine:**
+
 - 1 hour learning concepts
 - 1-2 hours hands-on practice
 - Document what you learned
 - Break things intentionally to understand them
 
 **Key Resources:**
+
 - [Cloudflare Docs](https://developers.cloudflare.com/)
 - [Workers Examples](https://developers.cloudflare.com/workers/examples/)
 - [Cloudflare Blog](https://blog.cloudflare.com/)
